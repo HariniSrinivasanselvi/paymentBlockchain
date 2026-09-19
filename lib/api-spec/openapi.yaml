@@ -1,0 +1,877 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: ChainRoute — Razorpay payment orchestration with a hash-linked blockchain audit ledger
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: auth
+    description: Authentication
+  - name: users
+    description: User management (RBAC)
+  - name: vendors
+    description: Vendor management
+  - name: payments
+    description: Payment orders
+  - name: transfers
+    description: Vendor payout transfers
+  - name: blockchain
+    description: Hash-linked audit ledger
+  - name: reconciliation
+    description: Internal vs. external reconciliation
+  - name: audit
+    description: Audit trail
+  - name: dashboard
+    description: Dashboard aggregates
+  - name: settings
+    description: Runtime configuration
+  - name: webhooks
+    description: Inbound Razorpay webhooks
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Log in with email and password. Sets an httpOnly session cookie.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Invalid credentials
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Clear the session cookie
+      responses:
+        "204":
+          description: Logged out
+
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Get the current authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Not authenticated
+
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List all users
+      responses:
+        "200":
+          description: Users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create a user (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{id}:
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: Update a user's role/status (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: Not found
+
+  /vendors:
+    get:
+      operationId: listVendors
+      tags: [vendors]
+      summary: List all vendors
+      responses:
+        "200":
+          description: Vendors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Vendor"
+    post:
+      operationId: createVendor
+      tags: [vendors]
+      summary: Create a vendor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vendor"
+
+  /vendors/{id}:
+    get:
+      operationId: getVendor
+      tags: [vendors]
+      summary: Get a vendor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Vendor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vendor"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateVendor
+      tags: [vendors]
+      summary: Update a vendor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VendorUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vendor"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteVendor
+      tags: [vendors]
+      summary: Deactivate/delete a vendor
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+
+  /payments:
+    get:
+      operationId: listPayments
+      tags: [payments]
+      summary: List payments
+      responses:
+        "200":
+          description: Payments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Payment"
+    post:
+      operationId: createPayment
+      tags: [payments]
+      summary: Create a payment order with vendor allocations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+        "400":
+          description: Invalid allocation
+
+  /payments/{id}:
+    get:
+      operationId: getPayment
+      tags: [payments]
+      summary: Get a payment with its allocations
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Payment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+        "404":
+          description: Not found
+
+  /payments/{id}/capture:
+    post:
+      operationId: capturePayment
+      tags: [payments]
+      summary: Capture a payment (real Razorpay verification, or simulated) and fan out vendor transfers
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentCaptureInput"
+      responses:
+        "200":
+          description: Captured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+        "404":
+          description: Not found
+        "409":
+          description: Already processed
+
+  /transfers:
+    get:
+      operationId: listTransfers
+      tags: [transfers]
+      summary: List vendor transfers
+      responses:
+        "200":
+          description: Transfers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Transfer"
+
+  /transfers/{id}:
+    get:
+      operationId: getTransfer
+      tags: [transfers]
+      summary: Get a transfer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Transfer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transfer"
+        "404":
+          description: Not found
+
+  /transfers/{id}/reverse:
+    post:
+      operationId: reverseTransfer
+      tags: [transfers]
+      summary: Reverse a processed transfer (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Reversed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transfer"
+        "404":
+          description: Not found
+
+  /blockchain/blocks:
+    get:
+      operationId: listBlockchainBlocks
+      tags: [blockchain]
+      summary: List all blocks in the ledger, most recent first
+      responses:
+        "200":
+          description: Blocks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BlockchainBlock"
+
+  /blockchain/transactions/{transactionId}:
+    get:
+      operationId: getBlockchainTransaction
+      tags: [blockchain]
+      summary: Get the ordered chain of blocks for a transaction (e.g. PAY-1023)
+      parameters:
+        - name: transactionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Blocks for the transaction
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BlockchainBlock"
+
+  /blockchain/verify:
+    get:
+      operationId: verifyBlockchain
+      tags: [blockchain]
+      summary: Recompute every hash in the ledger and report integrity
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlockchainVerifyResult"
+
+  /blockchain/blocks/{id}/tamper:
+    post:
+      operationId: tamperBlockchainBlock
+      tags: [blockchain]
+      summary: Demo-only — corrupt a block's stored payload without recomputing its hash, to demonstrate tamper detection (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Block tampered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BlockchainBlock"
+        "404":
+          description: Not found
+
+  /reconciliation:
+    get:
+      operationId: listReconciliation
+      tags: [reconciliation]
+      summary: List reconciliation records
+      responses:
+        "200":
+          description: Reconciliation records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReconciliationRecord"
+
+  /reconciliation/run:
+    post:
+      operationId: runReconciliation
+      tags: [reconciliation]
+      summary: Recompute reconciliation across all captured payments
+      responses:
+        "200":
+          description: Freshly computed reconciliation records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReconciliationRecord"
+
+  /audit-logs:
+    get:
+      operationId: listAuditLogs
+      tags: [audit]
+      summary: List audit log entries, most recent first
+      responses:
+        "200":
+          description: Audit logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditLog"
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Aggregate stats for the admin dashboard
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /settings:
+    get:
+      operationId: getSettings
+      tags: [settings]
+      summary: Public runtime configuration (whether Razorpay live keys are configured)
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Settings"
+
+  /webhooks/razorpay:
+    post:
+      operationId: handleRazorpayWebhook
+      tags: [webhooks]
+      summary: Inbound Razorpay webhook (HMAC-verified, idempotent)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RazorpayWebhookPayload"
+      responses:
+        "200":
+          description: Processed
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    UserRole:
+      type: string
+      enum: [ADMIN, OPERATOR, AUDITOR, VENDOR]
+
+    UserStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE]
+
+    User:
+      type: object
+      required: [id, name, email, role, status, createdAt]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string }
+        role:
+          $ref: "#/components/schemas/UserRole"
+        status:
+          $ref: "#/components/schemas/UserStatus"
+        vendorId: { type: ["integer", "null"] }
+        createdAt: { type: string, format: date-time }
+
+    UserInput:
+      type: object
+      required: [name, email, password, role]
+      properties:
+        name: { type: string, minLength: 1 }
+        email: { type: string, minLength: 3 }
+        password: { type: string, minLength: 6 }
+        role:
+          $ref: "#/components/schemas/UserRole"
+        vendorId: { type: ["integer", "null"] }
+
+    UserUpdate:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        role:
+          $ref: "#/components/schemas/UserRole"
+        status:
+          $ref: "#/components/schemas/UserStatus"
+
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string }
+        password: { type: string }
+
+    VendorStatus:
+      type: string
+      enum: [ACTIVE, PENDING, INACTIVE]
+
+    Vendor:
+      type: object
+      required: [id, vendorCode, businessName, email, phone, status, totalReceived, createdAt]
+      properties:
+        id: { type: integer }
+        vendorCode: { type: string }
+        businessName: { type: string }
+        email: { type: string }
+        phone: { type: string }
+        razorpayAccountId: { type: ["string", "null"] }
+        status:
+          $ref: "#/components/schemas/VendorStatus"
+        totalReceived: { type: integer, description: "Sum of processed transfers, in paise" }
+        createdAt: { type: string, format: date-time }
+
+    VendorInput:
+      type: object
+      required: [businessName, email, phone]
+      properties:
+        businessName: { type: string, minLength: 1 }
+        email: { type: string, minLength: 3 }
+        phone: { type: string, minLength: 3 }
+        razorpayAccountId: { type: string }
+
+    VendorUpdate:
+      type: object
+      properties:
+        businessName: { type: string, minLength: 1 }
+        email: { type: string, minLength: 3 }
+        phone: { type: string, minLength: 3 }
+        razorpayAccountId: { type: string }
+        status:
+          $ref: "#/components/schemas/VendorStatus"
+
+    PaymentStatus:
+      type: string
+      enum: [CREATED, AUTHORIZED, CAPTURED, FAILED]
+
+    PaymentAllocation:
+      type: object
+      required: [id, paymentId, label, amount]
+      properties:
+        id: { type: integer }
+        paymentId: { type: integer }
+        vendorId: { type: ["integer", "null"] }
+        vendorName: { type: ["string", "null"] }
+        label: { type: string }
+        amount: { type: integer, description: "Paise" }
+
+    PaymentAllocationInput:
+      type: object
+      required: [label, amount]
+      properties:
+        vendorId: { type: ["integer", "null"] }
+        label: { type: string, minLength: 1 }
+        amount: { type: integer, minimum: 1, description: "Paise" }
+
+    Payment:
+      type: object
+      required:
+        [
+          id,
+          internalPaymentId,
+          customerReference,
+          amount,
+          currency,
+          status,
+          simulated,
+          createdAt,
+          updatedAt,
+          allocations,
+        ]
+      properties:
+        id: { type: integer }
+        internalPaymentId: { type: string }
+        razorpayOrderId: { type: ["string", "null"] }
+        razorpayPaymentId: { type: ["string", "null"] }
+        customerReference: { type: string }
+        amount: { type: integer, description: "Paise" }
+        currency: { type: string }
+        status:
+          $ref: "#/components/schemas/PaymentStatus"
+        description: { type: ["string", "null"] }
+        simulated: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        allocations:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaymentAllocation"
+
+    PaymentInput:
+      type: object
+      required: [customerReference, amount, currency, allocations]
+      properties:
+        customerReference: { type: string, minLength: 1 }
+        amount: { type: integer, minimum: 1, description: "Paise" }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        description: { type: string }
+        allocations:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/PaymentAllocationInput"
+
+    PaymentCaptureInput:
+      type: object
+      properties:
+        razorpayPaymentId: { type: string }
+        razorpaySignature: { type: string }
+
+    TransferStatus:
+      type: string
+      enum: [CREATED, PROCESSED, FAILED, REVERSED]
+
+    Transfer:
+      type: object
+      required:
+        [id, paymentId, amount, status, simulated, createdAt]
+      properties:
+        id: { type: integer }
+        paymentId: { type: integer }
+        vendorId: { type: ["integer", "null"] }
+        vendorName: { type: ["string", "null"] }
+        razorpayTransferId: { type: ["string", "null"] }
+        amount: { type: integer, description: "Paise" }
+        status:
+          $ref: "#/components/schemas/TransferStatus"
+        settlementStatus: { type: ["string", "null"] }
+        simulated: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        processedAt: { type: ["string", "null"], format: date-time }
+
+    BlockchainBlock:
+      type: object
+      required:
+        [
+          id,
+          blockIndex,
+          transactionId,
+          eventType,
+          entityId,
+          payloadHash,
+          previousHash,
+          currentHash,
+          timestamp,
+        ]
+      properties:
+        id: { type: integer }
+        blockIndex: { type: integer }
+        transactionId: { type: string }
+        eventType: { type: string }
+        entityId: { type: string }
+        amount: { type: ["integer", "null"] }
+        payloadHash: { type: string }
+        previousHash: { type: string }
+        currentHash: { type: string }
+        timestamp: { type: string, format: date-time }
+        tampered: { type: boolean }
+
+    BlockchainInvalidBlock:
+      type: object
+      required: [blockIndex, transactionId, eventType, expectedHash, actualHash]
+      properties:
+        blockIndex: { type: integer }
+        transactionId: { type: string }
+        eventType: { type: string }
+        expectedHash: { type: string }
+        actualHash: { type: string }
+
+    BlockchainVerifyResult:
+      type: object
+      required: [valid, totalBlocks, validBlocks, invalidBlocks]
+      properties:
+        valid: { type: boolean }
+        totalBlocks: { type: integer }
+        validBlocks: { type: integer }
+        invalidBlocks:
+          type: array
+          items:
+            $ref: "#/components/schemas/BlockchainInvalidBlock"
+
+    ReconciliationStatus:
+      type: string
+      enum: [MATCH, MISMATCH]
+
+    ReconciliationRecord:
+      type: object
+      required:
+        [
+          id,
+          paymentId,
+          internalPaymentId,
+          label,
+          internalAmount,
+          externalAmount,
+          difference,
+          status,
+          checkedAt,
+        ]
+      properties:
+        id: { type: integer }
+        paymentId: { type: integer }
+        internalPaymentId: { type: string }
+        label: { type: string }
+        internalAmount: { type: integer, description: "Paise" }
+        externalAmount: { type: integer, description: "Paise" }
+        difference: { type: integer, description: "Paise" }
+        status:
+          $ref: "#/components/schemas/ReconciliationStatus"
+        checkedAt: { type: string, format: date-time }
+
+    AuditLog:
+      type: object
+      required: [id, action, entityType, timestamp]
+      properties:
+        id: { type: integer }
+        userId: { type: ["integer", "null"] }
+        userName: { type: ["string", "null"] }
+        action: { type: string }
+        entityType: { type: string }
+        entityId: { type: ["string", "null"] }
+        ipAddress: { type: ["string", "null"] }
+        timestamp: { type: string, format: date-time }
+
+    VendorShare:
+      type: object
+      required: [vendorName, amount, percentage]
+      properties:
+        vendorName: { type: string }
+        amount: { type: integer, description: "Paise" }
+        percentage: { type: number }
+
+    DashboardSummary:
+      type: object
+      required:
+        [
+          totalVolume,
+          successfulCount,
+          pendingCount,
+          failedCount,
+          vendorDistribution,
+          recentPayments,
+          recentBlockchainEvents,
+        ]
+      properties:
+        totalVolume: { type: integer, description: "Paise, captured payments only" }
+        successfulCount: { type: integer }
+        pendingCount: { type: integer }
+        failedCount: { type: integer }
+        vendorDistribution:
+          type: array
+          items:
+            $ref: "#/components/schemas/VendorShare"
+        recentPayments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Payment"
+        recentBlockchainEvents:
+          type: array
+          items:
+            $ref: "#/components/schemas/BlockchainBlock"
+
+    Settings:
+      type: object
+      required: [razorpayConfigured]
+      properties:
+        razorpayConfigured: { type: boolean }
+        razorpayKeyId: { type: ["string", "null"] }
+
+    RazorpayWebhookPayload:
+      type: object
+      description: Raw Razorpay webhook envelope; validated/parsed server-side.
